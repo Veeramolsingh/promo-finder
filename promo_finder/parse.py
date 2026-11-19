@@ -170,13 +170,21 @@ def parse_episode(path: str | Path) -> Episode:
 def load_show(folder: str | Path) -> list[Episode]:
     files = sorted(Path(folder).glob("*.txt"))
     eps = [parse_episode(f) for f in files]
-    nums = [e.number for e in eps]
-    if any(n <= 0 for n in nums) or len(set(nums)) != len(nums):
-        # Missing or clashing episode numbers: fall back to alphabetical file order (1, 2, 3...)
+    known = [e.number for e in eps if e.number > 0]
+    if len(set(known)) != len(known):
+        # Clashing episode numbers: fall back to alphabetical file order (1, 2, 3...)
         for i, e in enumerate(eps, 1):
             if e.number != i:
-                e.warnings.append(f"no unique episode number found - numbered {i} by file order")
+                e.warnings.append(f"episode numbers clash - numbered {i} by file order")
             e.number = i
+    else:
+        # Files without a number get the next free numbers; numbered files keep theirs
+        nxt = max(known, default=0) + 1
+        for e in eps:
+            if e.number <= 0:
+                e.warnings.append(f"no episode number found - numbered {nxt} by file order")
+                e.number = nxt
+                nxt += 1
     eps.sort(key=lambda e: e.number)
     return eps
 

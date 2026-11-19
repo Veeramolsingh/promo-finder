@@ -25,12 +25,14 @@ from .signals import episode_hints, hook_signal_at
 
 
 def build_shortlist(ranked: list[Promo], cfg: dict, judge: LLM | None, title: str,
-                    raw_dir: Path | None, log=print) -> list[Promo]:
+                    raw_dir: Path | None, log=print, stats: dict | None = None) -> list[Promo]:
     """Rank -> group the top candidates by story moment (1 AI call) -> pick the shortlist."""
     rcfg = cfg["ranking"]
     beat_of = None
     if judge is not None and rcfg.get("group_story_moments", True):
         cands = shortlist_candidates(ranked, rcfg)[: rcfg.get("story_group_candidates", 25)]
+        if len(cands) >= 2 and stats is not None:
+            stats["calls"] += 1  # the grouping call (only made when there is something to group)
         beat_of = group_story_beats(cands, judge, title, log=log,
                                     raw_path=(raw_dir / "show_story_groups.json") if raw_dir else None)
         for p in ranked:
@@ -191,6 +193,9 @@ def run(input_dir: str, out_dir: str, cfg: dict, episodes: str | None = None,
     for ep in todo:
         for w in ep.warnings:
             log(f"  ep {ep.number}: parse warning: {w}")
+        if not ep.content_lines:  # nothing the AI could read: don't spend a call on it
+            log(f"  ep {ep.number}: skipped - no timed script lines found in {ep.source_file}")
+            continue
         try:
             all_promos += process_episode(ep, n_eps, title, finder, judge, cfg, raw_dir, stats, log)
         except DailyLimitError as e:
@@ -204,11 +209,10 @@ def run(input_dir: str, out_dir: str, cfg: dict, episodes: str | None = None,
 
     ranked = rank_all(all_promos, cfg["ranking"])
     try:
-        short = build_shortlist(ranked, cfg, judge, title, raw_dir, log)
+        short = build_shortlist(ranked, cfg, judge, title, raw_dir, log, stats)
     except DailyLimitError as e:
         log(f"  story-moment grouping skipped (daily limit): {e}")
         short = shortlist(ranked, cfg["ranking"])
-    stats["calls"] += 1
     meta = {
         "show": title, "input_dir": str(input_dir), "episodes_total": len(eps),
         "episodes_processed": len({p.episode for p in all_promos}) if all_promos else 0,

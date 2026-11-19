@@ -55,7 +55,8 @@ Try it without any confidential data: `samples/fake_show_sample.zip` is an inven
 show in the same script format (`python run.py --input "samples/My Stepsister Stole My Fiance. I Bought His Company"`).
 
 Episode numbers come from each script's `EPISODE NUMBER:` line, then from a number in the file name.
-If neither exists, episodes are numbered in alphabetical file order, with a warning.
+Files with neither get the next free numbers in file order, with a warning. Files that aren't in
+the timed script format are flagged and skipped, so they never cost an AI call.
 
 Web app (live: https://veersinghkuku.streamlit.app; upload a .zip of scripts, get ranked promos):
 

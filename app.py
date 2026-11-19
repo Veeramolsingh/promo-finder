@@ -59,41 +59,49 @@ with st.sidebar:
     judge_model = pick_model("Judge model", CFG["models"]["judge"], "judge_model")
     title = st.text_input("Show title (used for spoiler judgement)", "",
                           placeholder="defaults to the folder name in the zip")
-    with st.expander("API keys"):
-        st.caption("Leave blank to use keys configured on the server.")
-        for k in ("GROQ_API_KEY", "ANTHROPIC_API_KEY", "GEMINI_API_KEY"):
-            v = st.text_input(k, type="password", key=f"key_{k}")
-            if v:
-                os.environ[k] = v
+    # Keys come only from the server (Streamlit Secrets) or a local .env. A key typed into a
+    # shared web app would land in the server process and be used for every visitor's runs.
     st.markdown("**Rules (from config.yaml)**")
     r = CFG["rules"]
     st.caption(f"{r['min_seconds']}-{r['max_seconds']}s long · hook within {r['hook_within_seconds']}s · "
                f"up to {r['max_segments']} stretches")
 
 
+MAX_FILES, MAX_FILE_BYTES = 500, 2_000_000   # a show's scripts are ~10 KB each
+
+
 def extract_zip(data: bytes, dest: Path) -> tuple[Path, str]:
-    """Extract only .txt files, flattened (no paths from the zip are trusted)."""
+    """Extract only .txt files, flattened (no paths from the zip are trusted), with size limits."""
     folder_names = set()
+    written = 0
     with zipfile.ZipFile(io.BytesIO(data)) as z:
         for info in z.infolist():
             name = info.filename.replace("\\", "/")
-            if info.is_dir() or not name.lower().endswith(".txt"):
+            if info.is_dir() or not name.lower().endswith(".txt") or "__MACOSX" in name:
+                continue
+            if info.file_size > MAX_FILE_BYTES or written >= MAX_FILES:
                 continue
             parts = name.split("/")
             if len(parts) > 1:
                 folder_names.add(parts[-2])
-            (dest / Path(parts[-1]).name).write_bytes(z.read(info))
+            target = dest / Path(parts[-1]).name
+            if target.exists():  # same file name in two folders: keep both
+                target = dest / f"{len(parts)}_{written}_{target.name}"
+            target.write_bytes(z.read(info))
+            written += 1
     guess = folder_names.pop() if len(folder_names) == 1 else ""
     return dest, guess
 
 
 @st.cache_data(show_spinner=False)
-def episodes_in_zip(data: bytes) -> list[int]:
-    """Episode numbers in an uploaded zip, read the same way the pipeline reads them."""
+def episodes_in_zip(data: bytes) -> tuple[list[int], int]:
+    """(episode numbers with timed script lines, number of .txt files that didn't parse)."""
     from promo_finder.parse import load_show
     tmp = Path(tempfile.mkdtemp(prefix="peek_"))
     folder, _ = extract_zip(data, tmp)
-    return [e.number for e in load_show(folder)]
+    eps = load_show(folder)
+    good = [e.number for e in eps if e.content_lines]
+    return good, len(eps) - len(good)
 
 
 # Saved runs live in outputs/, which is local only (it quotes the scripts, so it is never deployed).
@@ -110,12 +118,16 @@ with tab_run:
     episodes = None
     nums: list[int] = []
     if up is not None:
+        bad = 0
         try:
-            nums = episodes_in_zip(up.getvalue())
+            nums, bad = episodes_in_zip(up.getvalue())
         except zipfile.BadZipFile:
             st.error("That file isn't a valid zip.")
+        if bad:
+            st.warning(f"{bad} file(s) in the zip aren't in the expected script format "
+                       f"(timed blocks like `Start: (00:01.00) | End: (00:04.80)`) and will be skipped.")
         if not nums and up is not None:
-            st.warning("No .txt episode scripts found in this zip.")
+            st.warning("No timed episode scripts found in this zip.")
         elif len(nums) == 1:
             st.caption(f"1 episode found (episode {nums[0]}).")
         else:
