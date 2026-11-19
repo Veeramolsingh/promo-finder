@@ -107,49 +107,47 @@ with tab_run:
         (tmp / "scripts").mkdir()
         scripts, guessed = extract_zip(up.getvalue(), tmp / "scripts")
         out = tmp / "out"
-        log_box = st.empty()
-        lines: list[str] = []
+        with st.status("Finding promos...", expanded=True) as status:
+            log_box = st.empty()
+            lines: list[str] = []
 
-        def log(msg: str) -> None:
-            lines.append(msg)
-            log_box.code("\n".join(lines[-15:]))
+            def log(msg: str) -> None:
+                lines.append(msg)
+                log_box.code("\n".join(lines[-12:]))
 
-        try:
-            with st.spinner("Reading scripts and asking the models..."):
-                run(str(scripts), str(out), CFG, episodes=episodes or None,
-                    find_model=find_model, judge_model=judge_model,
-                    title=title or guessed or None, log=log)
-            st.session_state["result_dir"] = str(out)
-        except Exception as e:  # show the reason instead of a stack trace
-            st.error(f"Run failed: {e}")
+            try:
+                meta = run(str(scripts), str(out), CFG, episodes=episodes or None,
+                           find_model=find_model, judge_model=judge_model,
+                           title=title or guessed or None, log=log)
+                st.session_state["result_dir"] = str(out)
+                status.update(label=f"Done: {meta['episodes_processed']} episode(s) in "
+                                    f"{meta['seconds']:.0f}s", state="complete", expanded=False)
+            except Exception as e:  # show the reason instead of a stack trace
+                status.update(label="Run failed", state="error", expanded=True)
+                st.error(f"Run failed: {e}")
 
 
-def table(rows: list[dict]) -> None:
-    """Sortable table when pandas/pyarrow load; plain table otherwise (e.g. very long Windows paths)."""
-    if not rows:
-        st.caption("None.")
-        return
-    try:
-        import pyarrow.compute  # noqa: F401  (st.dataframe needs it)
-        st.dataframe(rows, use_container_width=True, hide_index=True)
-    except Exception:
-        cols = list(rows[0])
-        md = ["| " + " | ".join(cols) + " |", "|" + "---|" * len(cols)]
-        for r in rows:
-            md.append("| " + " | ".join(str(r[c]).replace("|", "/") for c in cols) + " |")
-        st.markdown("\n".join(md))
+def _esc(s: str) -> str:
+    """Stop '$' in script text being read as maths by Streamlit's markdown."""
+    return (s or "").replace("$", "\\$")
+
+
+def _where(p: dict) -> str:
+    return "  +  ".join(seg.replace("-", " → ") for seg in p["timestamps"].split("; "))
+
+
+SPOILER_TEXT = {"none": "no spoiler", "premise": "shows the title's premise", "major": "major spoiler"}
 
 
 def show_results(out: Path, key: str) -> None:
     data = json.loads((out / "promos.json").read_text(encoding="utf-8"))
     run_meta, promos = data["run"], data["promos"]
-    by_id = {p["id"]: p for p in promos}
-    st.caption(f"Finder: `{run_meta.get('find_model', '?')}` · Judge: `{run_meta.get('judge_model', '?')}`")
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Episodes", run_meta["episodes_processed"])
-    c2.metric("Ideas from AI", data["quality"]["ideas_from_ai"])
-    c3.metric("Passed checks", data["quality"]["passed_checks"])
-    c4.metric("AI calls", run_meta["calls"])
+    top_picks = set(data["shortlist"])
+    ranked = sorted((p for p in promos if p.get("rank")), key=lambda p: p["rank"])
+    by_ep: dict[int, list[dict]] = {}
+    for p in ranked:                       # each episode's promos, best first
+        by_ep.setdefault(p["episode"], []).append(p)
+
     stopped = run_meta.get("stopped_early")
     if stopped and "daily limit" in stopped:
         m = re.search(r"try again in ([\dhms.]+)", stopped)
@@ -165,45 +163,71 @@ def show_results(out: Path, key: str) -> None:
     elif stopped:
         st.warning(stopped)
 
-    st.subheader("Post these first")
-    if not data["shortlist"]:
-        st.info("No promo made the shortlist in this run.")
-    for i, pid in enumerate(data["shortlist"], 1):
-        p = by_id[pid]
+    # ---- one card per episode: that episode's best promo
+    if not by_ep:
+        st.info("No usable promo was found in this run.")
+        return
+    head_l, head_r = st.columns([3, 2])
+    head_l.subheader("Best promo in each episode")
+    order = head_r.radio("Order", ["Best first", "Episode order"], horizontal=True,
+                         key=f"{key}_order", label_visibility="collapsed")
+    best = [lst[0] for lst in by_ep.values()]
+    best.sort(key=(lambda p: p["rank"]) if order == "Best first" else (lambda p: p["episode"]))
+    st.caption(f"{len(best)} episode(s) with a usable promo. \"Post first\" marks the top picks to "
+               f"publish first. Score is out of 5.")
+
+    # promos showing the same story moment as a better one (consecutive episodes replay scenes)
+    first_in_group: dict[int, int] = {}
+    same_as: dict[str, int] = {}
+    for p in sorted(best, key=lambda p: p["rank"]):
+        g = p.get("story_group")
+        if g is None:
+            continue
+        if g in first_in_group:
+            same_as[p["id"]] = first_in_group[g]
+        else:
+            first_in_group[g] = p["episode"]
+
+    for p in best:
         s = p["scores"]
         with st.container(border=True):
-            st.markdown(f"**{i}. {p['title']}** — score {p['final_score']} · {p['duration']:.0f}s")
-            st.markdown("**Where:** " + "; then ".join(
-                f"Episode {p['episode']} {seg}" for seg in p["timestamps"].split("; ")))
-            st.markdown(f"**Hook:** {p['hook']}  \n**Cliffhanger:** {p['cliffhanger']}  \n"
-                        f"**Why it works:** {p['why']}")
+            left, right = st.columns([5, 1])
+            tag = "  :green-background[Post first]" if p["id"] in top_picks else ""
+            left.markdown(f"**Episode {p['episode']}** · {_where(p)} · {p['duration']:.0f}s{tag}")
+            right.markdown(f"<div style='text-align:right'>Score <b>{p['final_score']}</b></div>",
+                           unsafe_allow_html=True)
+            st.markdown(f"**{_esc(p['title'])}**  \n"
+                        f"**Hook:** {_esc(p['hook'])}  \n"
+                        f"**Cliffhanger:** {_esc(p['cliffhanger'])}  \n"
+                        f"**Why it works:** {_esc(p['why'])}")
             st.caption(f"Judge: hook {s.get('hook')}/5 · cliffhanger {s.get('cliffhanger')}/5 · "
-                       f"clarity {s.get('clarity')}/5 · spoiler {s.get('spoiler')} — {s.get('verdict', '')}")
-            if p["fixes"]:
-                st.caption("Code adjusted the cut: " + "; ".join(p["fixes"]))
+                       f"clarity {s.get('clarity')}/5 · {SPOILER_TEXT.get(s.get('spoiler'), '')}. "
+                       f"{_esc(s.get('verdict', ''))}")
+            if p["id"] in same_as:
+                st.caption(f"Same story moment as the Episode {same_as[p['id']]} promo.")
+            alts = by_ep[p["episode"]][1:]
+            if alts:
+                with st.expander(f"{len(alts)} other option{'s' if len(alts) > 1 else ''} in this episode"):
+                    for a in alts:
+                        st.markdown(f"- {_where(a)} · {a['duration']:.0f}s · **{_esc(a['title'])}** · "
+                                    f"score {a['final_score']}")
 
-    st.subheader("All ranked promos")
-    rows = [{"rank": p["rank"], "id": p["id"], "episode": p["episode"], "timestamps": p["timestamps"],
-             "seconds": p["duration"], "title": p["title"], "hook": p["scores"].get("hook"),
-             "cliff": p["scores"].get("cliffhanger"), "clarity": p["scores"].get("clarity"),
-             "spoiler": p["scores"].get("spoiler"), "score": p["final_score"]}
-            for p in sorted((p for p in promos if p.get("rank")), key=lambda p: p["rank"])]
-    table(rows)
-
-    rejected = [p for p in promos if not p["valid"]]
-    with st.expander(f"Ideas the code rejected ({len(rejected)})"):
-        table([{"id": p["id"], "why": "; ".join(p["problems"])} for p in rejected])
+    processed = sorted(run_meta.get("episodes_requested") or []) if not stopped else \
+        sorted({p["episode"] for p in promos})
+    empty = [e for e in processed if e not in by_ep]
+    if empty:
+        st.caption(f"No usable promo in episode(s): {', '.join(map(str, empty))}.")
+    st.caption(f"Finder `{run_meta.get('find_model', '?')}` · judge `{run_meta.get('judge_model', '?')}`")
 
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
         for f in out.rglob("*"):
             if f.is_file():
                 z.write(f, f.relative_to(out))
-    d1, d2, d3 = st.columns(3)
+    d1, d2, _ = st.columns([1, 2, 2])
     d1.download_button("Download CSV", (out / "promos.csv").read_bytes(), "promos.csv", key=f"{key}_csv")
-    d2.download_button("Download report", (out / "report.md").read_bytes(), "report.md", key=f"{key}_md")
-    d3.download_button("Download everything (incl. raw AI outputs)", buf.getvalue(), "promo_run.zip",
-                       key=f"{key}_zip")
+    d2.download_button("Download full results (report + raw AI outputs)", buf.getvalue(),
+                       "promo_run.zip", key=f"{key}_zip")
 
 
 with tab_run:
