@@ -90,7 +90,14 @@ def extract_zip(data: bytes, dest: Path) -> tuple[Path, str]:
     return dest, guess
 
 
-tab_run, tab_view = st.tabs(["Run on a show", "Open a previous run"])
+# Saved runs live in outputs/, which is local only (it quotes the scripts, so it is never deployed).
+# Show the "previous run" tab only where saved runs exist, i.e. when running on your own machine.
+SAVED_RUNS = sorted([p.parent for p in (ROOT / "outputs").glob("*/promos.json")],
+                    key=lambda p: p.stat().st_mtime, reverse=True) if (ROOT / "outputs").exists() else []
+if SAVED_RUNS:
+    tab_run, tab_view = st.tabs(["Run on a show", "Open a previous run"])
+else:
+    tab_run, tab_view = st.container(), None
 
 with tab_run:
     up = st.file_uploader("Upload a .zip of episode scripts (.txt)", type=["zip"])
@@ -201,11 +208,7 @@ with tab_run:
     if st.session_state.get("result_dir"):
         show_results(Path(st.session_state["result_dir"]), key="current")
 
-with tab_view:
-    runs = sorted([p.parent for p in (ROOT / "outputs").glob("*/promos.json")],
-                  key=lambda p: p.stat().st_mtime, reverse=True) if (ROOT / "outputs").exists() else []
-    if not runs:
-        st.info("No previous runs on this machine.")
-    else:
-        pick = st.selectbox("Run", runs, format_func=lambda p: p.name)
+if tab_view is not None:
+    with tab_view:
+        pick = st.selectbox("Run", SAVED_RUNS, format_func=lambda p: p.name)
         show_results(pick, key="previous")
