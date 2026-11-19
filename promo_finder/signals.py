@@ -36,8 +36,6 @@ INTENSE_TONES = [
     "horrif", "venom", "cruel", "desperate", "enrag", "terrif", "mock", "rage",
     "threat", "seething", "panic", "anguish", "livid",
 ]
-# Signs that a moment is left unresolved
-CLIFF_SOUND = ["cliffhanger", "ominous", "swell", "sting", "drone", "cut to black", "silence"]
 
 
 def _has_any(text: str, words: list[str]) -> list[str]:
@@ -67,19 +65,6 @@ def line_signal(line: Line) -> tuple[float, list[str]]:
             score += 0.1
             why.append("exclamation")
     return min(score, 1.0), why
-
-
-def cliff_signal(ep: Episode, line: Line) -> float:
-    """Rough 0-1 'unresolved moment' signal for a line (used by the baseline + ranking)."""
-    s = 0.0
-    if line.kind == "dialogue" and line.text.rstrip('"').rstrip().endswith(("?", "...", "?!")):
-        s += 0.4
-    if _has_any(line.text, CLIFF_SOUND):
-        s += 0.4
-    last = ep.content_lines[-1] if ep.content_lines else None
-    if last is not None and line.idx == last.idx:
-        s += 0.3  # episodes are written to end on a cliffhanger
-    return min(s, 1.0)
 
 
 def episode_hints(ep: Episode, top_n: int = 6) -> list[dict]:
