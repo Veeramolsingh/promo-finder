@@ -57,9 +57,6 @@ with st.sidebar:
 
     find_model = pick_model("Finder model", CFG["models"]["find"], "find_model")
     judge_model = pick_model("Judge model", CFG["models"]["judge"], "judge_model")
-    episodes = st.text_input("Episodes (blank = all)", "1-5",
-                             help="A full 50-episode show uses about 200K tokens, which is the whole "
-                                  "free daily allowance of one Groq model. Start with a few episodes.")
     title = st.text_input("Show title (used for spoiler judgement)", "",
                           placeholder="defaults to the folder name in the zip")
     with st.expander("API keys"):
@@ -90,6 +87,15 @@ def extract_zip(data: bytes, dest: Path) -> tuple[Path, str]:
     return dest, guess
 
 
+@st.cache_data(show_spinner=False)
+def episodes_in_zip(data: bytes) -> list[int]:
+    """Episode numbers in an uploaded zip, read the same way the pipeline reads them."""
+    from promo_finder.parse import load_show
+    tmp = Path(tempfile.mkdtemp(prefix="peek_"))
+    folder, _ = extract_zip(data, tmp)
+    return [e.number for e in load_show(folder)]
+
+
 # Saved runs live in outputs/, which is local only (it quotes the scripts, so it is never deployed).
 # Show the "previous run" tab only where saved runs exist, i.e. when running on your own machine.
 SAVED_RUNS = sorted([p.parent for p in (ROOT / "outputs").glob("*/promos.json")],
@@ -101,7 +107,27 @@ else:
 
 with tab_run:
     up = st.file_uploader("Upload a .zip of episode scripts (.txt)", type=["zip"])
-    go = st.button("Find promos", type="primary", disabled=up is None)
+    episodes = None
+    nums: list[int] = []
+    if up is not None:
+        try:
+            nums = episodes_in_zip(up.getvalue())
+        except zipfile.BadZipFile:
+            st.error("That file isn't a valid zip.")
+        if not nums and up is not None:
+            st.warning("No .txt episode scripts found in this zip.")
+        elif len(nums) == 1:
+            st.caption(f"1 episode found (episode {nums[0]}).")
+        else:
+            lo, hi = min(nums), max(nums)
+            a, b = st.slider("Episodes to process", lo, hi, (lo, min(lo + 4, hi)),
+                             help="Each episode uses about 4K tokens. Groq's free tier allows about "
+                                  "200K per model per day, so roughly 45 episodes a day.")
+            chosen = [n for n in nums if a <= n <= b]
+            st.caption(f"{len(nums)} episodes in the zip · processing {len(chosen)} "
+                       f"(episode {a} to {b}).")
+            episodes = f"{a}-{b}"
+    go = st.button("Find promos", type="primary", disabled=not nums)
     if go and up is not None:
         tmp = Path(tempfile.mkdtemp(prefix="promo_"))
         (tmp / "scripts").mkdir()
@@ -116,7 +142,7 @@ with tab_run:
                 log_box.code("\n".join(lines[-12:]))
 
             try:
-                meta = run(str(scripts), str(out), CFG, episodes=episodes or None,
+                meta = run(str(scripts), str(out), CFG, episodes=episodes,
                            find_model=find_model, judge_model=judge_model,
                            title=title or guessed or None, log=log)
                 st.session_state["result_dir"] = str(out)
