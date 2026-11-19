@@ -45,9 +45,18 @@ for k in ("GROQ_API_KEY", "ANTHROPIC_API_KEY", "GEMINI_API_KEY", "OPENAI_API_KEY
 
 with st.sidebar:
     st.header("Settings")
-    find_model = st.text_input("Finder model", CFG["models"]["find"],
-                               help="provider:model, e.g. groq:openai/gpt-oss-120b, anthropic:claude-opus-5-5")
-    judge_model = st.text_input("Judge model", CFG["models"]["judge"])
+    choices = list(dict.fromkeys([CFG["models"]["find"], CFG["models"]["judge"],
+                                  *CFG.get("model_params", {}).keys(), "Other (type below)"]))
+
+    def pick_model(label: str, default: str, key: str) -> str:
+        choice = st.selectbox(label, choices, index=choices.index(default), key=key,
+                              help="provider:model. Each Groq model has its own free daily allowance.")
+        if choice.startswith("Other"):
+            return st.text_input(f"{label} (provider:model)", "anthropic:claude-opus-5-5", key=key + "_txt")
+        return choice
+
+    find_model = pick_model("Finder model", CFG["models"]["find"], "find_model")
+    judge_model = pick_model("Judge model", CFG["models"]["judge"], "judge_model")
     episodes = st.text_input("Episodes (blank = all)", "1-5",
                              help="A full 50-episode show uses about 200K tokens, which is the whole "
                                   "free daily allowance of one Groq model. Start with a few episodes.")
@@ -128,6 +137,7 @@ def show_results(out: Path, key: str) -> None:
     data = json.loads((out / "promos.json").read_text(encoding="utf-8"))
     run_meta, promos = data["run"], data["promos"]
     by_id = {p["id"]: p for p in promos}
+    st.caption(f"Finder: `{run_meta.get('find_model', '?')}` · Judge: `{run_meta.get('judge_model', '?')}`")
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("Episodes", run_meta["episodes_processed"])
     c2.metric("Ideas from AI", data["quality"]["ideas_from_ai"])
