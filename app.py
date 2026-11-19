@@ -154,10 +154,12 @@ def show_results(out: Path, key: str) -> None:
     if stopped and "daily limit" in stopped:
         m = re.search(r"try again in ([\dhms.]+)", stopped)
         when = f" It refills in about {m.group(1).split('.')[0]}s." if m else ""
+        used = run_meta.get("find_model", "")
+        alt = next((c for c in ("groq:openai/gpt-oss-120b", "groq:openai/gpt-oss-20b") if c != used), "")
         st.warning(f"**The free daily token allowance ran out** after "
-                   f"{run_meta['episodes_processed']} episode(s).{when} To keep going now, change the "
-                   f"**Finder model** in the sidebar (for example `groq:openai/gpt-oss-20b`, which has its "
-                   f"own allowance), or try again later. Anything already finished is shown below.")
+                   f"{run_meta['episodes_processed']} episode(s).{when} To keep going now, pick a different "
+                   f"**Finder model** in the sidebar (for example `{alt}`, which has its own allowance), "
+                   f"or try again later. Anything already finished is shown below.")
         with st.expander("Technical detail"):
             st.code(stopped)
     elif stopped:
