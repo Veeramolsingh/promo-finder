@@ -171,7 +171,7 @@ def _promo_details(p: dict) -> None:
     st.markdown(f"**{_esc(p['title'])}**  \n"
                 f"**Hook:** {_esc(p['hook'])}  \n"
                 f"**Cliffhanger:** {_esc(p['cliffhanger'])}  \n"
-                f"**Why it works:** {_esc(p['why'])}")
+                f"**Why it could work:** {_esc(p['why'])}")
     st.caption(f"Judge: hook {s.get('hook')}/5 · cliffhanger {s.get('cliffhanger')}/5 · "
                f"clarity {s.get('clarity')}/5 · {SPOILER_TEXT.get(s.get('spoiler'), '')}. "
                f"{_esc(s.get('verdict', ''))}")

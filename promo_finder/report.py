@@ -109,7 +109,7 @@ def write_outputs(out: Path, all_promos: list[Promo], ranked: list[Promo], short
             f"Episode {p.episode}, {seg}" for seg in p.timestamps().split("; ")))
         L.append(f"- **Hook (first 3s):** {p.hook}")
         L.append(f"- **Cliffhanger (the cut):** {p.cliffhanger}")
-        L.append(f"- **Why it works:** {p.why}")
+        L.append(f"- **Why it could work:** {p.why}")
         L.append(f"- **Why it ranks here:** {rank_reason(p)}. Judge: {s.get('verdict', '')}")
         if s.get("confusing"):
             L.append(f"- **Might confuse a new viewer:** {s['confusing']}")
