@@ -109,12 +109,14 @@ def parse_episode(path: str | Path) -> Episode:
         if m:
             meta[m.group(1)] = m.group(2).strip()
 
-    num = None
+    # Episode number: the script's own header first, then the file name; 0 = unknown
+    # (load_show then numbers unknown episodes by file order).
+    num = 0
     m = re.search(r"(\d+)", meta.get("EPISODE NUMBER", ""))
     if m:
         num = int(m.group(1))
     else:
-        m = FILE_EP_RE.search(path.name)
+        m = FILE_EP_RE.search(path.name) or re.search(r"(\d+)", path.stem)
         num = int(m.group(1)) if m else 0
 
     ep = Episode(number=num, source_file=path.name,
@@ -168,6 +170,13 @@ def parse_episode(path: str | Path) -> Episode:
 def load_show(folder: str | Path) -> list[Episode]:
     files = sorted(Path(folder).glob("*.txt"))
     eps = [parse_episode(f) for f in files]
+    nums = [e.number for e in eps]
+    if any(n <= 0 for n in nums) or len(set(nums)) != len(nums):
+        # Missing or clashing episode numbers: fall back to alphabetical file order (1, 2, 3...)
+        for i, e in enumerate(eps, 1):
+            if e.number != i:
+                e.warnings.append(f"no unique episode number found - numbered {i} by file order")
+            e.number = i
     eps.sort(key=lambda e: e.number)
     return eps
 

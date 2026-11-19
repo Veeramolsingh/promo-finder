@@ -51,7 +51,13 @@ python run.py --input new_show/ --find-model anthropic:claude-opus-5-5   # stron
 python run.py --input new_show/ --find-model custom:<model>   # any OpenAI-compatible API (set CUSTOM_BASE_URL + CUSTOM_API_KEY)
 ```
 
-Web app (upload a .zip of scripts, get ranked promos):
+Try it without any confidential data: `samples/fake_show_sample.zip` is an invented one-episode
+show in the same script format (`python run.py --input "samples/My Stepsister Stole My Fiance. I Bought His Company"`).
+
+Episode numbers come from each script's `EPISODE NUMBER:` line, then from a number in the file name.
+If neither exists, episodes are numbered in alphabetical file order, with a warning.
+
+Web app (live: https://veersinghkuku.streamlit.app; upload a .zip of scripts, get ranked promos):
 
 ```bash
 streamlit run app.py
