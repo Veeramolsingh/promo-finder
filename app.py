@@ -165,6 +165,20 @@ def _where(p: dict) -> str:
 SPOILER_TEXT = {"none": "no spoiler", "premise": "shows the title's premise", "major": "major spoiler"}
 
 
+def _promo_details(p: dict) -> None:
+    """Title, hook, cliffhanger, why, and the judge's view: the same for best and other candidates."""
+    s = p["scores"]
+    st.markdown(f"**{_esc(p['title'])}**  \n"
+                f"**Hook:** {_esc(p['hook'])}  \n"
+                f"**Cliffhanger:** {_esc(p['cliffhanger'])}  \n"
+                f"**Why it works:** {_esc(p['why'])}")
+    st.caption(f"Judge: hook {s.get('hook')}/5 · cliffhanger {s.get('cliffhanger')}/5 · "
+               f"clarity {s.get('clarity')}/5 · {SPOILER_TEXT.get(s.get('spoiler'), '')}. "
+               f"{_esc(s.get('verdict', ''))}")
+    if s.get("confusing"):
+        st.caption(f"Might confuse a new viewer: {_esc(s['confusing'])}")
+
+
 def show_results(out: Path, key: str) -> None:
     data = json.loads((out / "promos.json").read_text(encoding="utf-8"))
     run_meta, promos = data["run"], data["promos"]
@@ -215,28 +229,27 @@ def show_results(out: Path, key: str) -> None:
             first_in_group[g] = p["episode"]
 
     for p in best:
-        s = p["scores"]
         with st.container(border=True):
             left, right = st.columns([5, 1])
             tag = "  :green-background[Post first]" if p["id"] in top_picks else ""
             left.markdown(f"**Episode {p['episode']}** · {_where(p)} · {p['duration']:.0f}s{tag}")
             right.markdown(f"<div style='text-align:right'>Score <b>{p['final_score']}</b></div>",
                            unsafe_allow_html=True)
-            st.markdown(f"**{_esc(p['title'])}**  \n"
-                        f"**Hook:** {_esc(p['hook'])}  \n"
-                        f"**Cliffhanger:** {_esc(p['cliffhanger'])}  \n"
-                        f"**Why it works:** {_esc(p['why'])}")
-            st.caption(f"Judge: hook {s.get('hook')}/5 · cliffhanger {s.get('cliffhanger')}/5 · "
-                       f"clarity {s.get('clarity')}/5 · {SPOILER_TEXT.get(s.get('spoiler'), '')}. "
-                       f"{_esc(s.get('verdict', ''))}")
+            _promo_details(p)
             if p["id"] in same_as:
                 st.caption(f"Same story moment as the Episode {same_as[p['id']]} promo.")
             alts = by_ep[p["episode"]][1:]
             if alts:
-                with st.expander(f"{len(alts)} other option{'s' if len(alts) > 1 else ''} in this episode"):
-                    for a in alts:
-                        st.markdown(f"- {_where(a)} · {a['duration']:.0f}s · **{_esc(a['title'])}** · "
-                                    f"score {a['final_score']}")
+                n = len(alts)
+                with st.expander(f"{n} other candidate{'s' if n > 1 else ''} in this episode (lower score)"):
+                    for i, a in enumerate(alts, 2):
+                        if i > 2:
+                            st.divider()
+                        al, ar = st.columns([5, 1])
+                        al.markdown(f"**Option {i}** · {_where(a)} · {a['duration']:.0f}s")
+                        ar.markdown(f"<div style='text-align:right'>Score <b>{a['final_score']}</b></div>",
+                                    unsafe_allow_html=True)
+                        _promo_details(a)
 
     processed = sorted(run_meta.get("episodes_requested") or []) if not stopped else \
         sorted({p["episode"] for p in promos})
