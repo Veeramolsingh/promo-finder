@@ -11,6 +11,7 @@ from __future__ import annotations
 import io
 import json
 import os
+import re
 import tempfile
 import zipfile
 from pathlib import Path
@@ -123,7 +124,7 @@ def table(rows: list[dict]) -> None:
         st.markdown("\n".join(md))
 
 
-def show_results(out: Path) -> None:
+def show_results(out: Path, key: str) -> None:
     data = json.loads((out / "promos.json").read_text(encoding="utf-8"))
     run_meta, promos = data["run"], data["promos"]
     by_id = {p["id"]: p for p in promos}
@@ -132,10 +133,22 @@ def show_results(out: Path) -> None:
     c2.metric("Ideas from AI", data["quality"]["ideas_from_ai"])
     c3.metric("Passed checks", data["quality"]["passed_checks"])
     c4.metric("AI calls", run_meta["calls"])
-    if run_meta.get("stopped_early"):
-        st.warning(run_meta["stopped_early"])
+    stopped = run_meta.get("stopped_early")
+    if stopped and "daily limit" in stopped:
+        m = re.search(r"try again in ([\dhms.]+)", stopped)
+        when = f" It refills in about {m.group(1).split('.')[0]}s." if m else ""
+        st.warning(f"**The free daily token allowance ran out** after "
+                   f"{run_meta['episodes_processed']} episode(s).{when} To keep going now, change the "
+                   f"**Finder model** in the sidebar (for example `groq:openai/gpt-oss-20b`, which has its "
+                   f"own allowance), or try again later. Anything already finished is shown below.")
+        with st.expander("Technical detail"):
+            st.code(stopped)
+    elif stopped:
+        st.warning(stopped)
 
     st.subheader("Post these first")
+    if not data["shortlist"]:
+        st.info("No promo made the shortlist in this run.")
     for i, pid in enumerate(data["shortlist"], 1):
         p = by_id[pid]
         s = p["scores"]
@@ -168,14 +181,15 @@ def show_results(out: Path) -> None:
             if f.is_file():
                 z.write(f, f.relative_to(out))
     d1, d2, d3 = st.columns(3)
-    d1.download_button("Download CSV", (out / "promos.csv").read_bytes(), "promos.csv")
-    d2.download_button("Download report", (out / "report.md").read_bytes(), "report.md")
-    d3.download_button("Download everything (incl. raw AI outputs)", buf.getvalue(), "promo_run.zip")
+    d1.download_button("Download CSV", (out / "promos.csv").read_bytes(), "promos.csv", key=f"{key}_csv")
+    d2.download_button("Download report", (out / "report.md").read_bytes(), "report.md", key=f"{key}_md")
+    d3.download_button("Download everything (incl. raw AI outputs)", buf.getvalue(), "promo_run.zip",
+                       key=f"{key}_zip")
 
 
 with tab_run:
     if st.session_state.get("result_dir"):
-        show_results(Path(st.session_state["result_dir"]))
+        show_results(Path(st.session_state["result_dir"]), key="current")
 
 with tab_view:
     runs = sorted([p.parent for p in (ROOT / "outputs").glob("*/promos.json")],
@@ -184,4 +198,4 @@ with tab_view:
         st.info("No previous runs on this machine.")
     else:
         pick = st.selectbox("Run", runs, format_func=lambda p: p.name)
-        show_results(pick)
+        show_results(pick, key="previous")
