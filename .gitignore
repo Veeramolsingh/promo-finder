@@ -1,0 +1,25 @@
+# Secrets
+.env
+.streamlit/secrets.toml
+
+# Kuku's confidential input pack: never commit or publish
+data/
+
+# Run outputs quote the scripts: share them by private link, not in a public repo
+outputs/
+.cache/
+
+# Label sheets are full copies of the scripts (confidential)
+gold/label_sheets/
+
+# Solution doc, interview notes and AI log quote the show: shared via Drive, not published
+docs/*
+!docs/make_pdf.py
+
+# Local tool settings
+.claude/
+
+# Python
+__pycache__/
+*.pyc
+.venv/

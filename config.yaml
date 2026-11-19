@@ -1,0 +1,55 @@
+# Promo Finder settings. Everything a user might want to change lives here.
+
+# ---- Which AI models to use -------------------------------------------------
+# Format: <provider>:<model id>. Override on the command line with --find-model / --judge-model.
+# The finder and the judge are deliberately different model families, so the judge
+# is not grading its own homework.
+models:
+  find: groq:openai/gpt-oss-120b
+  judge: groq:qwen/qwen3.8-27b
+
+# Extra settings per model (passed straight to the provider).
+model_params:
+  groq:openai/gpt-oss-120b: {temperature: 0.2, reasoning_effort: medium}
+  groq:openai/gpt-oss-20b: {temperature: 0.2, reasoning_effort: medium}
+  groq:qwen/qwen3.8-27b: {temperature: 0.0}
+
+# Where each provider lives and which variable in .env holds its key.
+providers:
+  groq:      {type: openai_compatible, base_url: "https://api.groq.com/openai/v1", api_key_env: GROQ_API_KEY}
+  gemini:    {type: openai_compatible, base_url: "https://generativelanguage.googleapis.com/v1beta/openai/", api_key_env: GEMINI_API_KEY}
+  openai:    {type: openai_compatible, base_url: "https://api.openai.com/v1", api_key_env: OPENAI_API_KEY}
+  anthropic: {type: anthropic, api_key_env: ANTHROPIC_API_KEY}
+  # Any other OpenAI-compatible endpoint (for example one Kuku provides):
+  # set CUSTOM_BASE_URL and CUSTOM_API_KEY in .env, then use --find-model custom:<model id>
+  custom:    {type: openai_compatible, base_url_env: CUSTOM_BASE_URL, api_key_env: CUSTOM_API_KEY}
+
+llm:
+  find_max_tokens: 4000
+  judge_max_tokens: 2500
+  pause_between_calls_seconds: 0   # raise this if a provider's per-minute limit keeps tripping
+
+# ---- The brief's rules (enforced by code, not by the AI) ------------------------
+rules:
+  min_seconds: 20
+  max_seconds: 60
+  hook_within_seconds: 3      # the hook line must start in the first 3 seconds
+  max_segments: 3             # a promo may join up to 3 stretches of one episode
+  snap_window_seconds: 1.5    # cut on a camera shot change if one is this close
+  reaction_tail_seconds: 3    # a silent reaction after the cliffhanger may stay in
+  dedupe_overlap: 0.6         # drop a promo that shares >60% of its time with a better one
+
+# ---- How promos are ranked ------------------------------------------------------
+ranking:
+  # final score (1-5 scale) = weighted judge scores + rule signal - spoiler penalty
+  weights: {hook: 0.35, cliffhanger: 0.30, clarity: 0.25, rules: 0.10}
+  major_spoiler_penalty: 1.0
+  # the "post first" shortlist
+  top_n: 10
+  min_clarity_for_shortlist: 3   # a promo a stranger cannot follow never makes the shortlist
+  min_score_for_shortlist: 3.0   # never recommend a weak promo just to fill the list
+  max_per_episode_in_shortlist: 1
+  # Consecutive episodes replay the same scene: one AI call groups the top candidates by
+  # story moment, and the shortlist keeps only the best promo of each moment.
+  group_story_moments: true
+  story_group_candidates: 25

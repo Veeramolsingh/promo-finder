@@ -1,0 +1,6 @@
+# Tested with openai 3.55, anthropic 2.10, pyyaml 6, python-dotenv 1, streamlit 1.67 on Python 3.11
+openai>=1.50,<4
+anthropic>=0.70,<3
+pyyaml>=6.0,<7
+python-dotenv>=1.0,<2
+streamlit>=1.40,<2
