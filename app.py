@@ -115,6 +115,23 @@ else:
 
 with tab_run:
     up = st.file_uploader("Upload a .zip of episode scripts (.txt)", type=["zip"])
+    with st.expander("What files can I upload?"):
+        st.markdown(
+            "**A `.zip` of `.txt` files, one per episode**, in the timed script format, where every "
+            "block looks like this:\n"
+            "```\n**HEROINE (Shocked):**\nStart: (00:13.50) | End: (00:14.30)\n\"Why?\"\n```\n"
+            "- **Required:** the `**NAME:**` (or `**CAMERA:**` / `**ACTION:**` / `**SOUND FX:**`) "
+            "headers, each followed by a `Start: (mm:ss.xx) | End: (mm:ss.xx)` line. Those timestamps "
+            "are what the tool cuts on.\n"
+            "- **Optional, but they help:** the `EPISODE LOGLINE:` and `CONTINUITY NOTES:` lines at "
+            "the top give the AI context, and a folder inside the zip named after the show becomes the "
+            "show's title (or type it in the sidebar).\n"
+            "- **Not read:** plain screenplays without timestamps, subtitle files (.srt), PDF or Word "
+            "files, or `hh:mm:ss` times. Such files are flagged and skipped, at no AI cost.\n\n"
+            "**Episode numbers** come from the `EPISODE NUMBER:` line inside a script, then from a "
+            "number in the file name (`ep7.txt`, `episode-007.txt`). Files with neither get the next "
+            "free numbers in alphabetical file order, which may not be story order, so name them "
+            "`01_wedding.txt`, `02_slap.txt` and so on.")
     episodes = None
     nums: list[int] = []
     if up is not None:
