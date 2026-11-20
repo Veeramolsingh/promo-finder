@@ -29,6 +29,12 @@ llm:
   judge_max_tokens: 2500
   pause_between_calls_seconds: 0   # raise this if a provider's per-minute limit keeps tripping
 
+# ---- Keyword hints ----------------------------------------------------------------
+hints:
+  # One small AI call per show learns the show's own shock words (a secret duke, a CEO, an
+  # alpha) from its episode summaries; they're added to the genre-neutral lists in signals.py.
+  learn_show_words: true
+
 # ---- The brief's rules (enforced by code, not by the AI) ------------------------
 rules:
   min_seconds: 20

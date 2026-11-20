@@ -15,7 +15,7 @@ scripts (.txt) -> 1 READ (code) -> 2 FLAG (code) -> 3 FIND (AI) -> 4 CHECK (code
 | Step | Who | What |
 |---|---|---|
 | 1 Read | code | Parses each script into timed lines: speaker, tone, action, sound, camera shots. |
-| 2 Flag | code | Keyword and emotion rules score likely hooks (slap, reveal, shouting). Given to the AI as hints and used as a no-AI baseline. |
+| 2 Flag | code (+1 AI call per show) | Keyword and emotion rules score likely hooks. The built-in lists are genre-neutral (slap, divorce, "who are you", screaming). One small call per show reads the episode summaries and learns that show's own shock words (duke and heir for a historical drama; CEO and shares for a billionaire romance). Only words that really occur in the scripts are kept. Given to the AI as hints and used as a no-AI baseline. |
 | 3 Find | AI | Reads one episode and proposes 2-3 promos **as line numbers**, plus hook, cliffhanger and why. |
 | 4 Check | code | Turns line numbers into timestamps. Enforces the brief: hook within 3s, ends on the cliffhanger, 20-60s, no cut mid-sentence, cuts snapped to camera shot changes. Rejects or fixes, and records why. |
 | 5 Judge | a different AI | Scores each clip as a stranger scrolling TikTok would: hook, cliffhanger, clarity (1-5) and spoiler level. It sees only the clip and the show title. |
@@ -89,7 +89,7 @@ and makes no AI calls.
 | `run.py`, `app.py` | command line and web app |
 | `config.yaml` | models, the brief's rules, ranking weights |
 | `promo_finder/parse.py` | 1 Read |
-| `promo_finder/signals.py` | 2 Flag |
+| `promo_finder/signals.py`, `promo_finder/show_words.py` | 2 Flag: generic lists + per-show learned words |
 | `promo_finder/prompts.py` | the two prompts (find, judge) |
 | `promo_finder/llm.py` | the only code that talks to a model; caching; free-tier quota waits |
 | `promo_finder/check.py` | 4 Check |
