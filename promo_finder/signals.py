@@ -55,7 +55,7 @@ def line_signal(line: Line, show_words: tuple[str, ...] = ()) -> tuple[float, li
     if phys and line.kind in ("action", "sfx"):
         score += 0.5
         why.append("physical: " + ", ".join(phys[:3]))
-    rev = _has_any(line.text, REVEAL) + _has_any(line.text, show_words)
+    rev = list(dict.fromkeys(_has_any(line.text, REVEAL) + _has_any(line.text, show_words)))
     if rev:
         score += 0.3
         why.append("reveal/shock words: " + ", ".join(rev[:3]))
