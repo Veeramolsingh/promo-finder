@@ -2,8 +2,9 @@
 
   READ (code) -> FLAG (code) -> FIND (AI) -> CHECK (code) -> JUDGE (AI) -> RANK (code) -> REPORT
 
-Two AI calls per episode (one find, one judge), plus one retry for an episode
-whose ideas all fail the checks. Every AI request and reply is saved unedited
+AI calls: two per episode (one find, one judge), plus one retry for an episode
+whose ideas all fail the checks, plus two small ones per show (learn the show's
+own shock words; group repeated story moments). Every AI request and reply is saved unedited
 in <out>/raw/.
 """
 

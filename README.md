@@ -26,7 +26,7 @@ Key design choices:
 - **The finder and judge are different model families**, so the judge is not grading its own work.
 - **Any model can be swapped in with one setting:** `--find-model provider:model`. Groq, Gemini, OpenAI, Anthropic and any OpenAI-compatible endpoint are already configured.
 - **Every AI request and reply is saved unedited** in `raw/`, and answers are cached, so re-running costs nothing.
-- **Two AI calls per episode** (find + judge), plus one retry when all of an episode's ideas fail the checks, plus one call per show to group story moments. Measured cost: about $0.16 per 50-episode show at Groq's paid prices ($0 on the free tier).
+- **Two AI calls per episode** (find + judge), plus one retry when all of an episode's ideas fail the checks, plus two small calls per show (learn the show's own shock words, and group repeated story moments). So 50 episodes is about 100 calls plus 2, plus any retries. Measured cost: about $0.16 per 50-episode show at Groq's paid prices ($0 on the free tier).
 
 ## Run it
 
